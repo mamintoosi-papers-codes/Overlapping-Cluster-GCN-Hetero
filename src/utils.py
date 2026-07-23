@@ -3,6 +3,7 @@ import torch
 import numpy as np
 import pandas as pd
 import networkx as nx
+from openpyxl import load_workbook
 from texttable import Texttable
 from scipy.sparse import coo_matrix
 from torch_geometric.datasets import PPI
@@ -169,10 +170,6 @@ def _hetero_target_split(data, target_node_type, test_ratio, seed):
     train_mask[train_index] = True
     test_mask[test_index] = True
     return target, train_mask, test_mask
-
-
-from openpyxl import load_workbook
-
 
 def append_df_to_excel(filename, df, sheet_name='Sheet1', startrow=None,
                        truncate_sheet=False, 

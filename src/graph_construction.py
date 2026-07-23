@@ -84,17 +84,17 @@ def build_hetero_cluster_partitions(args,
 
         cluster_edge_index_dict = {}
         for edge_type, edge_index in edge_index_dict.items():
-            source_type, _, dst_type = edge_type
-            if source_type not in nodes_by_type or dst_type not in nodes_by_type:
+            source_type, _, target_type = edge_type
+            if source_type not in nodes_by_type or target_type not in nodes_by_type:
                 continue
             source_nodes = set(nodes_by_type[source_type].tolist())
-            target_nodes = set(nodes_by_type[dst_type].tolist())
+            target_nodes = set(nodes_by_type[target_type].tolist())
             remapped_edges = []
             for src_local, dst_local in zip(edge_index[0].tolist(), edge_index[1].tolist()):
                 if src_local in source_nodes and dst_local in target_nodes:
                     remapped_edges.append([
                         local_id_maps[source_type][src_local],
-                        local_id_maps[dst_type][dst_local]
+                        local_id_maps[target_type][dst_local]
                     ])
             if remapped_edges:
                 cluster_edge_index_dict[edge_type] = torch.LongTensor(remapped_edges).t().contiguous()

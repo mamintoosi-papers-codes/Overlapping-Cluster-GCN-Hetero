@@ -140,7 +140,13 @@ class ClusteringMachine(object):
         Clustering the graph with DANMF. For details see:
         """
         num_labels = {'CiteSeer':6, 'Cora':7, 'PubMed':3, 'WikiCS':10}
-        default_cluster_count = DEFAULT_CLUSTER_MULTIPLIER * self.class_count if self.is_hetero else DEFAULT_CLUSTER_MULTIPLIER * num_labels[self.args.dataset_name]
+        if self.is_hetero:
+            default_cluster_count = DEFAULT_CLUSTER_MULTIPLIER * self.class_count
+        else:
+            default_cluster_count = DEFAULT_CLUSTER_MULTIPLIER * num_labels.get(
+                self.args.dataset_name,
+                max(self.args.cluster_number, self.class_count)
+            )
 
         model = DANMF(layers=[32, default_cluster_count], pre_iterations = 500, iterations = 200)
         # model = EgoNetSplitter(1.0) # ماتریس احتمال بر نمی‌گرداند
