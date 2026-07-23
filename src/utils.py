@@ -1,3 +1,4 @@
+import os
 import torch
 import numpy as np
 import pandas as pd
@@ -86,13 +87,13 @@ def dataset_reader(args):
 
     elif dataset_name in ['PubMed', 'Cora', 'CiteSeer','WikiCS']:
         if dataset_name == 'PubMed':
-            dataset = Planetoid(root=args.ds_root+'/PubMed', name='PubMed', split='full')
+            dataset = Planetoid(root=os.path.join(args.ds_root, 'PubMed'), name='PubMed', split='full')
         elif dataset_name == 'Cora':
-            dataset = Planetoid(root=args.ds_root+'/Cora', name='Cora', split='full')
+            dataset = Planetoid(root=os.path.join(args.ds_root, 'Cora'), name='Cora', split='full')
         elif dataset_name == 'CiteSeer':
-            dataset = Planetoid(root=args.ds_root+'/CiteSeer', name='CiteSeer', split='full')
+            dataset = Planetoid(root=os.path.join(args.ds_root, 'CiteSeer'), name='CiteSeer', split='full')
         elif dataset_name == 'WikiCS':
-            dataset = WikiCS(root=args.ds_root+'/WikiCS')
+            dataset = WikiCS(root=os.path.join(args.ds_root, 'WikiCS'))
         data = dataset[0]
         graph = to_networkx(data, to_undirected=True)
         # node_labels = data.y[list(graph.nodes)].numpy()
@@ -108,7 +109,7 @@ def dataset_reader(args):
         }
 
     elif dataset_name in HETERO_DATASETS:
-        dataset = HGBDataset(root=args.ds_root+'/'+dataset_name, name=dataset_name, transform=ToUndirected())
+        dataset = HGBDataset(root=os.path.join(args.ds_root, dataset_name), name=dataset_name, transform=ToUndirected())
         data = dataset[0]
         node_features = _hetero_feature_dict(data)
         target_node_type = args.target_node_type or DEFAULT_TARGET_NODE_TYPES[dataset_name]
@@ -170,7 +171,6 @@ def _hetero_target_split(data, target_node_type, test_ratio, seed):
     return target, train_mask, test_mask
 
 
-import os
 from openpyxl import load_workbook
 
 

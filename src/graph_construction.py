@@ -64,7 +64,8 @@ def build_hetero_cluster_partitions(args,
             selected_nodes = [node_id for node_id in node_ids.tolist() if node_id in included_nodes]
             if not selected_nodes:
                 continue
-            local_ids = [node_id - int(node_ids[0]) for node_id in selected_nodes]
+            global_to_local_id = {global_id: local_id for local_id, global_id in enumerate(node_ids.tolist())}
+            local_ids = [global_to_local_id[node_id] for node_id in selected_nodes]
             nodes_by_type[node_type] = torch.LongTensor(local_ids)
             local_id_maps[node_type] = {local_id: index for index, local_id in enumerate(local_ids)}
 

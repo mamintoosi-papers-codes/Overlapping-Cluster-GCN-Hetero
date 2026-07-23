@@ -104,7 +104,11 @@ class ClusterGCNTrainer(object):
             target = batch["targets"].to(self.device).squeeze()[test_nodes]
             prediction = self.model(x_dict, edge_index_dict)[test_nodes, :]
             global_nodes = batch["global_target_nodes"].to(self.device)[test_nodes]
-            return prediction, target, global_nodes
+            return {
+                "prediction": prediction,
+                "target": target,
+                "global_nodes": global_nodes
+            }
         edges = self.clustering_machine.sg_edges[cluster].to(self.device)
         macro_nodes = self.clustering_machine.sg_nodes[cluster].to(self.device)
         test_nodes = self.clustering_machine.sg_test_nodes[cluster].to(self.device)
@@ -113,7 +117,11 @@ class ClusterGCNTrainer(object):
         target = target[test_nodes]
         prediction = self.model(edges, features)
         prediction = prediction[test_nodes,:]
-        return prediction, target
+        return {
+            "prediction": prediction,
+            "target": target,
+            "global_nodes": None
+        }
 
     def train(self):
         """
@@ -146,11 +154,11 @@ class ClusterGCNTrainer(object):
             aggregated_predictions = {}
             aggregated_targets = {}
             for cluster in self.clustering_machine.clusters:
-                prediction, target, global_nodes = self.do_prediction(cluster)
+                prediction_batch = self.do_prediction(cluster)
                 for node_id, node_target, node_prediction in zip(
-                    global_nodes.cpu().detach().numpy().tolist(),
-                    target.cpu().detach().numpy().tolist(),
-                    prediction.cpu().detach().numpy()
+                    prediction_batch["global_nodes"].cpu().detach().numpy().tolist(),
+                    prediction_batch["target"].cpu().detach().numpy().tolist(),
+                    prediction_batch["prediction"].cpu().detach().numpy()
                 ):
                     aggregated_targets[node_id] = node_target
                     aggregated_predictions.setdefault(node_id, []).append(node_prediction)
@@ -162,9 +170,9 @@ class ClusterGCNTrainer(object):
             ]).argmax(1)
         else:
             for cluster in self.clustering_machine.clusters:
-                prediction, target = self.do_prediction(cluster)
-                self.predictions.append(prediction.cpu().detach().numpy())
-                self.targets.append(target.cpu().detach().numpy())
+                prediction_batch = self.do_prediction(cluster)
+                self.predictions.append(prediction_batch["prediction"].cpu().detach().numpy())
+                self.targets.append(prediction_batch["target"].cpu().detach().numpy())
             self.targets = np.concatenate(self.targets)
             self.predictions = np.concatenate(self.predictions).argmax(1)
         score = f1_score(self.targets, self.predictions, average="micro")

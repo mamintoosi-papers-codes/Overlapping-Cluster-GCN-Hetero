@@ -13,6 +13,10 @@ from karateclub import SymmNMF #NNSED #EgoNetSplitter
 from graph_construction import build_hetero_cluster_partitions
 from models.projector import HeteroProjector
 
+
+MIN_KNN_NEIGHBOURS = 2
+DEFAULT_CLUSTER_MULTIPLIER = 2
+
 class ClusteringMachine(object):
     """
     Clustering the graph, feature set and target.
@@ -106,7 +110,7 @@ class ClusteringMachine(object):
     def _build_hetero_clustering_graph(self, embeddings):
         graph = nx.Graph()
         graph.add_nodes_from(range(embeddings.shape[0]))
-        neighbour_count = min(max(self.args.hetero_knn_k + 1, 2), embeddings.shape[0])
+        neighbour_count = min(max(self.args.hetero_knn_k + 1, MIN_KNN_NEIGHBOURS), embeddings.shape[0])
         neighbours = NearestNeighbors(n_neighbors=neighbour_count)
         neighbours.fit(embeddings)
         indices = neighbours.kneighbors(return_distance=False)
@@ -136,7 +140,7 @@ class ClusteringMachine(object):
         Clustering the graph with DANMF. For details see:
         """
         num_labels = {'CiteSeer':6, 'Cora':7, 'PubMed':3, 'WikiCS':10}
-        default_cluster_count = 2 * self.class_count if self.is_hetero else 2 * num_labels[self.args.dataset_name]
+        default_cluster_count = DEFAULT_CLUSTER_MULTIPLIER * self.class_count if self.is_hetero else DEFAULT_CLUSTER_MULTIPLIER * num_labels[self.args.dataset_name]
 
         model = DANMF(layers=[32, default_cluster_count], pre_iterations = 500, iterations = 200)
         # model = EgoNetSplitter(1.0) # ماتریس احتمال بر نمی‌گرداند
