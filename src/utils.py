@@ -1,4 +1,5 @@
 import os
+import warnings
 import torch
 import numpy as np
 import pandas as pd
@@ -154,6 +155,7 @@ def _degree_features(data, node_type):
             degree_columns.append(degree(edge_index[1], num_nodes=data[node_type].num_nodes))
     if degree_columns:
         return torch.stack(degree_columns, dim=-1)
+    warnings.warn("Using constant fallback features for isolated node type '{}'.".format(node_type))
     return torch.ones((data[node_type].num_nodes, 1), dtype=torch.float)
 
 
@@ -163,8 +165,8 @@ def _hetero_target_split(data, target_node_type, test_ratio, seed):
     if hasattr(target_store, "train_mask") and hasattr(target_store, "test_mask"):
         return target, target_store.train_mask.view(-1), target_store.test_mask.view(-1)
 
-    labelled_nodes = np.where(target.cpu().numpy() >= 0)[0]
-    train_index, test_index = train_test_split(labelled_nodes, test_size=test_ratio, random_state=seed)
+    labeled_nodes = np.where(target.cpu().numpy() >= 0)[0]
+    train_index, test_index = train_test_split(labeled_nodes, test_size=test_ratio, random_state=seed)
     train_mask = torch.zeros(target_store.num_nodes, dtype=torch.bool)
     test_mask = torch.zeros(target_store.num_nodes, dtype=torch.bool)
     train_mask[train_index] = True

@@ -1,6 +1,7 @@
 import torch
 import random
 import numpy as np
+from collections import defaultdict
 from tqdm import trange, tqdm
 from layers import StackedGCN
 from layers import HeteroStackedGNN
@@ -151,7 +152,7 @@ class ClusterGCNTrainer(object):
         self.predictions = []
         self.targets = []
         if self.clustering_machine.is_hetero:
-            aggregated_predictions = {}
+            aggregated_predictions = defaultdict(list)
             aggregated_targets = {}
             for cluster in self.clustering_machine.clusters:
                 prediction_batch = self.do_prediction(cluster)
@@ -161,7 +162,7 @@ class ClusterGCNTrainer(object):
                     prediction_batch["prediction"].cpu().detach().numpy()
                 ):
                     aggregated_targets[node_id] = node_target
-                    aggregated_predictions.setdefault(node_id, []).append(node_prediction)
+                    aggregated_predictions[node_id].append(node_prediction)
             ordered_nodes = sorted(aggregated_predictions.keys())
             self.targets = np.array([aggregated_targets[node_id] for node_id in ordered_nodes])
             self.predictions = np.vstack([

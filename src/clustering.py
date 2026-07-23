@@ -14,7 +14,7 @@ from graph_construction import build_hetero_cluster_partitions
 from models.projector import HeteroProjector
 
 
-MIN_KNN_NEIGHBOURS = 2
+MIN_KNN_NEIGHBORS = 2
 DEFAULT_CLUSTER_MULTIPLIER = 2
 
 class ClusteringMachine(object):
@@ -110,13 +110,13 @@ class ClusteringMachine(object):
     def _build_hetero_clustering_graph(self, embeddings):
         graph = nx.Graph()
         graph.add_nodes_from(range(embeddings.shape[0]))
-        neighbour_count = min(max(self.args.hetero_knn_k + 1, MIN_KNN_NEIGHBOURS), embeddings.shape[0])
-        neighbours = NearestNeighbors(n_neighbors=neighbour_count)
-        neighbours.fit(embeddings)
-        indices = neighbours.kneighbors(return_distance=False)
-        for node_id, node_neighbours in enumerate(indices):
-            for neighbour_id in node_neighbours[1:]:
-                graph.add_edge(node_id, int(neighbour_id))
+        neighbor_count = min(max(self.args.hetero_knn_k + 1, MIN_KNN_NEIGHBORS), embeddings.shape[0])
+        neighbors = NearestNeighbors(n_neighbors=neighbor_count)
+        neighbors.fit(embeddings)
+        indices = neighbors.kneighbors(return_distance=False)
+        for node_id, node_neighbors in enumerate(indices):
+            for neighbor_id in node_neighbors[1:]:
+                graph.add_edge(node_id, int(neighbor_id))
         return graph
 
 
