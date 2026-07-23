@@ -6,8 +6,16 @@ from texttable import Texttable
 from scipy.sparse import coo_matrix
 from torch_geometric.datasets import PPI
 from torch_geometric.datasets import Planetoid
+from torch_geometric.datasets import HGBDataset
 from torch_geometric.datasets import WikiCS
+from torch_geometric.transforms import ToUndirected
 from torch_geometric.utils.convert import to_networkx
+from torch_geometric.utils import degree
+from sklearn.model_selection import train_test_split
+
+
+HETERO_DATASETS = {"ACM", "DBLP", "IMDB"}
+DEFAULT_TARGET_NODE_TYPES = {"ACM": "paper", "DBLP": "author", "IMDB": "movie"}
 
 def tab_printer(args):
     """
@@ -69,6 +77,12 @@ def dataset_reader(args):
         graph = graph_reader("./input/edges.csv")
         features = feature_reader("./input/features.csv")
         target = target_reader("./input/target.csv")
+        return {
+            "is_hetero": False,
+            "graph": graph,
+            "features": features,
+            "target": target
+        }
 
     elif dataset_name in ['PubMed', 'Cora', 'CiteSeer','WikiCS']:
         if dataset_name == 'PubMed':
@@ -86,7 +100,74 @@ def dataset_reader(args):
         features = data.x.numpy()
         target = data.y.numpy()[..., np.newaxis]
 
-    return graph, features, target
+        return {
+            "is_hetero": False,
+            "graph": graph,
+            "features": features,
+            "target": target
+        }
+
+    elif dataset_name in HETERO_DATASETS:
+        dataset = HGBDataset(root=args.ds_root+'/'+dataset_name, name=dataset_name, transform=ToUndirected())
+        data = dataset[0]
+        node_features = _hetero_feature_dict(data)
+        target_node_type = args.target_node_type or DEFAULT_TARGET_NODE_TYPES[dataset_name]
+        target, train_mask, test_mask = _hetero_target_split(data, target_node_type, args.test_ratio, args.seed)
+        return {
+            "is_hetero": True,
+            "data": data,
+            "node_types": list(data.node_types),
+            "edge_index_dict": {edge_type: data[edge_type].edge_index.cpu() for edge_type in data.edge_types},
+            "node_features": {node_type: features.cpu() for node_type, features in node_features.items()},
+            "target": target.cpu(),
+            "train_mask": train_mask.cpu(),
+            "test_mask": test_mask.cpu(),
+            "target_node_type": target_node_type
+        }
+
+    raise ValueError("Unsupported dataset name: {}".format(dataset_name))
+
+
+def _hetero_feature_dict(data):
+    node_features = {}
+    for node_type in data.node_types:
+        node_store = data[node_type]
+        features = getattr(node_store, "x", None)
+        if features is None:
+            features = _degree_features(data, node_type)
+        if features.dim() == 1:
+            features = features.unsqueeze(-1)
+        node_features[node_type] = features.float()
+    return node_features
+
+
+def _degree_features(data, node_type):
+    degree_columns = []
+    for edge_type in data.edge_types:
+        source_type, _, target_type = edge_type
+        edge_index = data[edge_type].edge_index
+        if source_type == node_type:
+            degree_columns.append(degree(edge_index[0], num_nodes=data[node_type].num_nodes))
+        if target_type == node_type:
+            degree_columns.append(degree(edge_index[1], num_nodes=data[node_type].num_nodes))
+    if degree_columns:
+        return torch.stack(degree_columns, dim=-1)
+    return torch.ones((data[node_type].num_nodes, 1), dtype=torch.float)
+
+
+def _hetero_target_split(data, target_node_type, test_ratio, seed):
+    target_store = data[target_node_type]
+    target = target_store.y.view(-1)
+    if hasattr(target_store, "train_mask") and hasattr(target_store, "test_mask"):
+        return target, target_store.train_mask.view(-1), target_store.test_mask.view(-1)
+
+    labelled_nodes = np.where(target.cpu().numpy() >= 0)[0]
+    train_index, test_index = train_test_split(labelled_nodes, test_size=test_ratio, random_state=seed)
+    train_mask = torch.zeros(target_store.num_nodes, dtype=torch.bool)
+    test_mask = torch.zeros(target_store.num_nodes, dtype=torch.bool)
+    train_mask[train_index] = True
+    test_mask[test_index] = True
+    return target, train_mask, test_mask
 
 
 import os

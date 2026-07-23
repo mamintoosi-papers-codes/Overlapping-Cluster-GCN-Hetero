@@ -1,5 +1,7 @@
 import torch
 from torch_geometric.nn import GCNConv
+from torch_geometric.nn import HeteroConv
+from torch_geometric.nn import SAGEConv
 
 class StackedGCN(torch.nn.Module):
     """
@@ -41,6 +43,53 @@ class StackedGCN(torch.nn.Module):
         features = self.layers[i+1](features, edges)
         predictions = torch.nn.functional.log_softmax(features, dim=1)
         return predictions
+
+
+class HeteroStackedGNN(torch.nn.Module):
+    """
+    Multi-layer heterogeneous GNN with target-node classification.
+    """
+    def __init__(self, args, metadata, input_channels, output_channels, target_node_type):
+        super(HeteroStackedGNN, self).__init__()
+        self.args = args
+        self.metadata = metadata
+        self.input_channels = input_channels
+        self.output_channels = output_channels
+        self.target_node_type = target_node_type
+        self.setup_layers()
+
+    def setup_layers(self):
+        self.layers = torch.nn.ModuleList()
+        hidden_layers = list(self.args.layers)
+        if not hidden_layers:
+            hidden_layers = [self.input_channels]
+        layer_sizes = [self.input_channels] + hidden_layers
+        for input_size, output_size in zip(layer_sizes[:-1], layer_sizes[1:]):
+            relation_layers = {
+                edge_type: SAGEConv((input_size, input_size), output_size)
+                for edge_type in self.metadata[1]
+            }
+            self.layers.append(HeteroConv(relation_layers, aggr="sum"))
+        self.output_layer = torch.nn.Linear(layer_sizes[-1], self.output_channels)
+
+    def forward(self, x_dict, edge_index_dict):
+        for layer_index, layer in enumerate(self.layers):
+            updated_x_dict = layer(x_dict, edge_index_dict)
+            x_dict = {
+                node_type: updated_x_dict.get(node_type, features)
+                for node_type, features in x_dict.items()
+            }
+            if layer_index < len(self.layers) - 1:
+                x_dict = {
+                    node_type: torch.nn.functional.dropout(
+                        torch.nn.functional.relu(features),
+                        p=self.args.dropout,
+                        training=self.training
+                    )
+                    for node_type, features in x_dict.items()
+                }
+        logits = self.output_layer(x_dict[self.target_node_type])
+        return torch.nn.functional.log_softmax(logits, dim=1)
 
 class ListModule(torch.nn.Module):
     """

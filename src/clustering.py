@@ -5,34 +5,67 @@ import numpy as np
 import networkx as nx
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import normalize
+from sklearn.neighbors import NearestNeighbors
 # from cdlib import algorithms, viz
 # با کتابخانه بالا در کولب مشکل دارم!
 from karateclub.community_detection.overlapping import DANMF
 from karateclub import SymmNMF #NNSED #EgoNetSplitter
+from graph_construction import build_hetero_cluster_partitions
+from models.projector import HeteroProjector
 
 class ClusteringMachine(object):
     """
     Clustering the graph, feature set and target.
     """
-    def __init__(self, args, graph, features, target):
+    def __init__(self, args, dataset_bundle):
         """
         :param args: Arguments object with parameters.
-        :param graph: Networkx Graph.
-        :param features: Feature matrix (ndarray).
-        :param target: Target vector (ndarray).
+        :param dataset_bundle: Homogeneous or heterogeneous dataset bundle.
         """
         self.args = args
-        self.graph = graph
-        self.features = features
-        self.target = target
+        self.is_hetero = dataset_bundle["is_hetero"]
+        if self.is_hetero:
+            self._init_hetero(dataset_bundle)
+        else:
+            self.graph = dataset_bundle["graph"]
+            self.features = dataset_bundle["features"]
+            self.target = dataset_bundle["target"]
         self._set_sizes()
+
+    def _init_hetero(self, dataset_bundle):
+        self.data = dataset_bundle["data"]
+        self.node_types = dataset_bundle["node_types"]
+        self.edge_index_dict = dataset_bundle["edge_index_dict"]
+        self.raw_x_dict = dataset_bundle["node_features"]
+        self.target = dataset_bundle["target"]
+        self.train_mask = dataset_bundle["train_mask"]
+        self.test_mask = dataset_bundle["test_mask"]
+        self.target_node_type = dataset_bundle["target_node_type"]
+        self.metadata = (self.node_types, list(self.edge_index_dict.keys()))
+        self.local_to_global = {}
+        input_dims = {}
+        offset = 0
+        for node_type in self.node_types:
+            node_count = self.raw_x_dict[node_type].shape[0]
+            self.local_to_global[node_type] = torch.arange(offset, offset + node_count, dtype=torch.long)
+            input_dims[node_type] = self.raw_x_dict[node_type].shape[1]
+            offset += node_count
+        projector = HeteroProjector(input_dims, self.args.hetero_projector_dim)
+        self.projected_x_dict, unified_embeddings = projector.project_and_unify(self.raw_x_dict, self.node_types)
+        self.features = unified_embeddings.cpu().numpy()
+        self.graph = self._build_hetero_clustering_graph(self.features)
 
     def _set_sizes(self):
         """
         Setting the feature and class count.
         """
-        self.feature_count = self.features.shape[1] 
-        self.class_count = np.max(self.target)+1
+        if self.is_hetero:
+            self.feature_count = self.args.hetero_projector_dim
+            labelled_targets = self.target[self.target >= 0]
+            self.class_count = int(labelled_targets.max().item()) + 1
+        else:
+            self.feature_count = self.features.shape[1]
+            self.class_count = np.max(self.target)+1
 
     def decompose(self):
         """
@@ -64,8 +97,23 @@ class ClusteringMachine(object):
         # print('Clusters info: Min, Max, Sum element numbers:',\
         #  np.min(self.cluster_lens), np.max(self.cluster_lens), np.sum(self.cluster_lens))
 
-        self.general_data_partitioning()
-        self.transfer_edges_and_nodes()
+        if self.is_hetero:
+            self.general_hetero_partitioning()
+        else:
+            self.general_data_partitioning()
+            self.transfer_edges_and_nodes()
+
+    def _build_hetero_clustering_graph(self, embeddings):
+        graph = nx.Graph()
+        graph.add_nodes_from(range(embeddings.shape[0]))
+        neighbour_count = min(max(self.args.hetero_knn_k + 1, 2), embeddings.shape[0])
+        neighbours = NearestNeighbors(n_neighbors=neighbour_count)
+        neighbours.fit(embeddings)
+        indices = neighbours.kneighbors(return_distance=False)
+        for node_id, node_neighbours in enumerate(indices):
+            for neighbour_id in node_neighbours[1:]:
+                graph.add_edge(node_id, int(neighbour_id))
+        return graph
 
 
     def random_clustering(self):
@@ -88,8 +136,9 @@ class ClusteringMachine(object):
         Clustering the graph with DANMF. For details see:
         """
         num_labels = {'CiteSeer':6, 'Cora':7, 'PubMed':3, 'WikiCS':10}
+        default_cluster_count = 2 * self.class_count if self.is_hetero else 2 * num_labels[self.args.dataset_name]
 
-        model = DANMF(layers=[32,2*num_labels[self.args.dataset_name]], pre_iterations = 500, iterations = 200)
+        model = DANMF(layers=[32, default_cluster_count], pre_iterations = 500, iterations = 200)
         # model = EgoNetSplitter(1.0) # ماتریس احتمال بر نمی‌گرداند
         # model = NNSED() # این هم همچنین
         # model = SymmNMF() # در شبکه خطا میده!
@@ -133,7 +182,28 @@ class ClusteringMachine(object):
         # مشکل باید از جای دیگری باشه. شماره ۱۱ در لیست اصلی نیست اما در دومی هست در کورا
         # self.clusters = list(np.arange(0,np.max(values_list)+1))
         self.cluster_membership = {node: membership for node, membership in enumerate(near_clusters)}
-        
+
+    def general_hetero_partitioning(self):
+        """
+        Creating heterogeneous cluster sub-graphs and target-specific splits.
+        """
+        self.clusters, self.cluster_batches = build_hetero_cluster_partitions(
+            self.args,
+            self.clusters,
+            self.cluster_membership,
+            self.projected_x_dict,
+            self.edge_index_dict,
+            self.target,
+            self.train_mask,
+            self.test_mask,
+            self.target_node_type,
+            self.local_to_global
+        )
+        self.ClusterNodes = [
+            int(sum(batch_x.shape[0] for batch_x in self.cluster_batches[cluster]["x_dict"].values()))
+            for cluster in self.clusters
+        ]
+
     def graph_clustering(self):
         """
         Clustering the graph with other graph clustering algorithms
