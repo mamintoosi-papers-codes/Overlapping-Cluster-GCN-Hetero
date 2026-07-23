@@ -14,7 +14,6 @@ from graph_construction import build_hetero_cluster_partitions
 from models.projector import HeteroProjector
 
 
-MIN_KNN_NEIGHBORS = 2
 DEFAULT_CLUSTER_MULTIPLIER = 2
 
 class ClusteringMachine(object):
@@ -110,7 +109,7 @@ class ClusteringMachine(object):
     def _build_hetero_clustering_graph(self, embeddings):
         graph = nx.Graph()
         graph.add_nodes_from(range(embeddings.shape[0]))
-        neighbor_count = min(max(self.args.hetero_knn_k + 1, MIN_KNN_NEIGHBORS), embeddings.shape[0])
+        neighbor_count = min(max(self.args.hetero_knn_k, 1) + 1, embeddings.shape[0])
         neighbors = NearestNeighbors(n_neighbors=neighbor_count)
         neighbors.fit(embeddings)
         indices = neighbors.kneighbors(return_distance=False)
@@ -140,12 +139,13 @@ class ClusteringMachine(object):
         Clustering the graph with DANMF. For details see:
         """
         num_labels = {'CiteSeer':6, 'Cora':7, 'PubMed':3, 'WikiCS':10}
+        base_cluster_count = max(self.args.cluster_number, self.class_count)
         if self.is_hetero:
-            default_cluster_count = DEFAULT_CLUSTER_MULTIPLIER * self.class_count
+            default_cluster_count = DEFAULT_CLUSTER_MULTIPLIER * base_cluster_count
         else:
             default_cluster_count = DEFAULT_CLUSTER_MULTIPLIER * num_labels.get(
                 self.args.dataset_name,
-                max(self.args.cluster_number, self.class_count)
+                base_cluster_count
             )
 
         model = DANMF(layers=[32, default_cluster_count], pre_iterations = 500, iterations = 200)

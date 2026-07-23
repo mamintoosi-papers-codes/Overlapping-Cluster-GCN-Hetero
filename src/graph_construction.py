@@ -29,7 +29,7 @@ def build_hetero_cluster_partitions(args,
     """
     cluster_batches = {}
     active_clusters = []
-    all_global_nodes = set().union(*[set(node_ids.tolist()) for node_ids in local_to_global.values()])
+    all_global_nodes = set(torch.cat(list(local_to_global.values())).tolist())
     target_global_ids = set(local_to_global[target_node_type].tolist())
 
     if args.hetero_training_mode == "full_batch":

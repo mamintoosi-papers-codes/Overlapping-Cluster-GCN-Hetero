@@ -4,7 +4,6 @@ import torch
 import numpy as np
 import pandas as pd
 import networkx as nx
-from openpyxl import load_workbook
 from texttable import Texttable
 from scipy.sparse import coo_matrix
 from torch_geometric.datasets import PPI
@@ -74,13 +73,14 @@ def dataset_reader(args):
     :return target: Target vector.
     """
     dataset_name = args.dataset_name
+    dataset_bundle = None
     # if dataset_name=='PPI':        
     #     dataset = PPI(root=path)
     if dataset_name=='default':
         graph = graph_reader("./input/edges.csv")
         features = feature_reader("./input/features.csv")
         target = target_reader("./input/target.csv")
-        return {
+        dataset_bundle = {
             "is_hetero": False,
             "graph": graph,
             "features": features,
@@ -103,7 +103,7 @@ def dataset_reader(args):
         features = data.x.numpy()
         target = data.y.numpy()[..., np.newaxis]
 
-        return {
+        dataset_bundle = {
             "is_hetero": False,
             "graph": graph,
             "features": features,
@@ -116,7 +116,7 @@ def dataset_reader(args):
         node_features = _hetero_feature_dict(data)
         target_node_type = args.target_node_type or DEFAULT_TARGET_NODE_TYPES[dataset_name]
         target, train_mask, test_mask = _hetero_target_split(data, target_node_type, args.test_ratio, args.seed)
-        return {
+        dataset_bundle = {
             "is_hetero": True,
             "data": data,
             "node_types": list(data.node_types),
@@ -128,7 +128,9 @@ def dataset_reader(args):
             "target_node_type": target_node_type
         }
 
-    raise ValueError("Unsupported dataset name: {}".format(dataset_name))
+    if dataset_bundle is None:
+        raise ValueError("Unsupported dataset name: {}".format(dataset_name))
+    return dataset_bundle
 
 
 def _hetero_feature_dict(data):
@@ -225,6 +227,7 @@ def append_df_to_excel(filename, df, sheet_name='Sheet1', startrow=None,
     writer = pd.ExcelWriter(filename, engine='openpyxl', mode='a')
 
     # try to open an existing workbook
+    from openpyxl import load_workbook
     writer.book = load_workbook(filename)
     
     # get the last row in the existing Excel sheet

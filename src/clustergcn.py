@@ -166,7 +166,7 @@ class ClusterGCNTrainer(object):
             ordered_nodes = sorted(aggregated_predictions.keys())
             self.targets = np.array([aggregated_targets[node_id] for node_id in ordered_nodes])
             self.predictions = np.vstack([
-                np.mean(np.vstack(aggregated_predictions[node_id]), axis=0)
+                np.asarray(aggregated_predictions[node_id]).mean(axis=0)
                 for node_id in ordered_nodes
             ]).argmax(1)
         else:
