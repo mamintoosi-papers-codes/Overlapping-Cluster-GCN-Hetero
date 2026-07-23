@@ -46,6 +46,8 @@ texttable		1.6.4
 karateclub		1.2.1
 ```
 
+For the heterogeneous adaptation path, use a recent `torch-geometric` release with `HeteroData`, `HeteroConv`, and `HGBDataset` support enabled.
+
 ### Run on Google Colab
 https://colab.research.google.com/github/mamintoosi/Overlapping-Cluster-GCN/blob/master/OverlappingClusterGCN.ipynb
 
@@ -67,8 +69,22 @@ PyTorch-geometric </a>
   --layers              LST     Layer sizes.                   Default is [16, 16, 16]. 
   --membership-closeness FLOAT  WMC parameter					Default is 0.1
   --dataset-name		STR		Dataset Name					Default is Cora
+  --target-node-type    STR     Target heterogeneous node type. Default depends on dataset.
+  --hetero-projector-dim INT    Shared latent size for hetero projection. Default is 64.
+  --hetero-knn-k        INT     KNN size used for hetero clustering. Default is 10.
+  --hetero-training-mode STR    `cluster` for overlapping subgraphs or `full_batch` for the hetero baseline.
 ```
 -------------------------------------------------------
+
+### Heterogeneous datasets
+
+The hetero adaptation supports `ACM`, `DBLP`, and `IMDB` through PyG `HeteroData`.
+
+- `ACM` defaults to `paper` classification.
+- `DBLP` defaults to `author` classification.
+- `IMDB` defaults to `movie` classification.
+
+To compare clustered training against the full-batch hetero baseline, run the same dataset with `--hetero-training-mode cluster` and `--hetero-training-mode full_batch`.
 
 This code is heavily borrowed from <a href="https://github.com/benedekrozemberczki/ClusterGCN">ClusterGCN</a>
 

@@ -39,9 +39,9 @@ torch.manual_seed(args.seed)
 # print(features.shape, target.shape)
 Scores = []
 # for i in range(args.num_trial):
-graph, features, target = dataset_reader(args)
+dataset_bundle = dataset_reader(args)
 # print(features.shape, target.shape)
-clustering_machine = ClusteringMachine(args, graph, features, target)
+clustering_machine = ClusteringMachine(args, dataset_bundle)
 clustering_machine.decompose()
 start = time.time()    
 gcn_trainer = ClusterGCNTrainer(args, clustering_machine)
@@ -66,7 +66,7 @@ run_time = end - start
 #     }, index=[0])
     #  'All Clusters Nodes': np.sum(clustering_machine.ClusterNodes),
 ds_report = [args.membership_closeness, args.dataset_name, score, \
-    np.sum(clustering_machine.ClusterNodes)/len(graph.nodes()),\
+    np.sum(clustering_machine.ClusterNodes)/len(clustering_machine.graph.nodes()),\
         run_time ]
 
 # sns.lineplot(x="k", y="apk",

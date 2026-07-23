@@ -67,6 +67,27 @@ def parameter_parser():
                         default = 10,
                         help = "Number of clusters extracted. Default is 10.")
 
+    parser.add_argument("--target-node-type",
+                        type = str,
+                        default = None,
+                        help = "Target node type used for heterogeneous node classification.")
+
+    parser.add_argument("--hetero-projector-dim",
+                        type = int,
+                        default = 64,
+                        help = "Unified latent dimension used to project heterogeneous node features.")
+
+    parser.add_argument("--hetero-knn-k",
+                        type = int,
+                        default = 10,
+                        help = "Number of nearest neighbours used to build the clustering graph for heterogeneous datasets.")
+
+    parser.add_argument("--hetero-training-mode",
+                        type = str,
+                        default = "cluster",
+                        choices = ["cluster", "full_batch"],
+                        help = "Use clustered hetero subgraphs or a single full-batch hetero baseline run.")
+
     parser.set_defaults(layers = [16, 16, 16])
     
     return parser.parse_args()
