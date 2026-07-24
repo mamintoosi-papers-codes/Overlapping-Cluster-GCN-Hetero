@@ -10,6 +10,8 @@ from torch_geometric.datasets import PPI
 from torch_geometric.datasets import Planetoid
 from torch_geometric.datasets import HGBDataset
 from torch_geometric.datasets import WikiCS
+from torch_geometric.datasets import OGB_MAG
+from torch_geometric.datasets import FakeHeteroDataset
 from torch_geometric.transforms import ToUndirected
 from torch_geometric.utils.convert import to_networkx
 from torch_geometric.utils import degree
@@ -18,6 +20,7 @@ from sklearn.model_selection import train_test_split
 
 HETERO_DATASETS = {"ACM", "DBLP", "IMDB"}
 DEFAULT_TARGET_NODE_TYPES = {"ACM": "paper", "DBLP": "author", "IMDB": "movie"}
+OGB_MAG_TARGET_TYPE = "paper"
 
 def tab_printer(args):
     """
@@ -116,6 +119,63 @@ def dataset_reader(args):
         node_features = _hetero_feature_dict(data)
         target_node_type = args.target_node_type or DEFAULT_TARGET_NODE_TYPES[dataset_name]
         target, train_mask, test_mask = _hetero_target_split(data, target_node_type, args.test_ratio, args.seed)
+        dataset_bundle = {
+            "is_hetero": True,
+            "data": data,
+            "node_types": list(data.node_types),
+            "edge_index_dict": {edge_type: data[edge_type].edge_index.cpu() for edge_type in data.edge_types},
+            "node_features": {node_type: features.cpu() for node_type, features in node_features.items()},
+            "target": target.cpu(),
+            "train_mask": train_mask.cpu(),
+            "test_mask": test_mask.cpu(),
+            "target_node_type": target_node_type
+        }
+
+    elif dataset_name == "OGB_MAG":
+        dataset = OGB_MAG(root=os.path.join(args.ds_root, "OGB_MAG"))
+        data = dataset[0]
+        node_features = _hetero_feature_dict(data)
+        target_node_type = args.target_node_type or OGB_MAG_TARGET_TYPE
+        target, train_mask, test_mask = _hetero_target_split(data, target_node_type, args.test_ratio, args.seed)
+        dataset_bundle = {
+            "is_hetero": True,
+            "data": data,
+            "node_types": list(data.node_types),
+            "edge_index_dict": {edge_type: data[edge_type].edge_index.cpu() for edge_type in data.edge_types},
+            "node_features": {node_type: features.cpu() for node_type, features in node_features.items()},
+            "target": target.cpu(),
+            "train_mask": train_mask.cpu(),
+            "test_mask": test_mask.cpu(),
+            "target_node_type": target_node_type
+        }
+
+    elif dataset_name == "SYNTH_HETERO":
+        dataset = FakeHeteroDataset(num_graphs=1, num_node_types=3, num_edge_types=4,
+                                    num_nodes_per_type=200, num_classes=5)
+        data = dataset[0]
+        data.node_types = sorted(data.node_types)
+        data.edge_types = sorted(data.edge_types)
+        target_node_type = data.node_types[0]
+        node_features = {}
+        for node_type in data.node_types:
+            node_store = data[node_type]
+            feat = getattr(node_store, "x", None)
+            if feat is None:
+                feat = torch.randn(node_store.num_nodes, 32)
+            node_features[node_type] = feat.float()
+        target = data[target_node_type].y.view(-1).long()
+        labeled = target >= 0
+        labeled_idx = torch.where(labeled)[0]
+        if len(labeled_idx) == 0:
+            target = torch.randint(0, 5, (data[target_node_type].num_nodes,))
+            labeled_idx = torch.arange(data[target_node_type].num_nodes)
+        train_idx, test_idx = train_test_split(
+            labeled_idx.numpy(), test_size=args.test_ratio, random_state=args.seed
+        )
+        train_mask = torch.zeros(data[target_node_type].num_nodes, dtype=torch.bool)
+        test_mask = torch.zeros(data[target_node_type].num_nodes, dtype=torch.bool)
+        train_mask[train_idx] = True
+        test_mask[test_idx] = True
         dataset_bundle = {
             "is_hetero": True,
             "data": data,

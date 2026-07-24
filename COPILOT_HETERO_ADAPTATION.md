@@ -1,7 +1,7 @@
 # Copilot Adaptation Plan: Step 1 (Heterogeneous Graph Extension)
 
 ## Project Context
-This repository is a fork of the original `Overlapping-Cluster-GCN` project. 
+This repository is a fork of the original `C:/git/mamintoosi/Overlapping-Cluster-GCN` project. 
 - **Original Work**: Efficient GCN training on **Homogeneous** graphs using overlapping clustering.
 - **Current Objective (Step 1)**: Generalize the existing codebase to support **Heterogeneous** Graphs (graphs with multiple node types and edge types) while **preserving the core overlapping clustering mechanism**.
 - I have to borrow some idea from this paper: https://arxiv.org/html/2607.03097v1 and enhance my previous paper:https://jac.ut.ac.ir/article_85195.html

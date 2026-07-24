@@ -48,7 +48,7 @@ gcn_trainer = ClusterGCNTrainer(args, clustering_machine)
 gcn_trainer.train()
 score = gcn_trainer.test()
 Scores.append(score)
-# print("\nF-1 score: {:.2f}".format(score))
+print("\nF-1 score: {:.4f}".format(score))
 
 # if args.num_trial>1:
 #     print("\n\n Mean F-1 score: {:.2f}".format(np.mean(Scores)))

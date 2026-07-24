@@ -29,21 +29,28 @@ def build_hetero_cluster_partitions(args,
     """
     cluster_batches = {}
     active_clusters = []
-    all_global_nodes = set(torch.cat(list(local_to_global.values())).tolist())
     target_global_ids = set(local_to_global[target_node_type].tolist())
 
     if args.hetero_training_mode == "full_batch":
-        clusters = [0]
-        cluster_membership = {node_id: 0 for node_id in sorted(all_global_nodes)}
+        # Full batch: use all nodes and edges directly (no remapping needed)
+        train_nodes = torch.where(train_mask)[0]
+        test_nodes = torch.where(test_mask)[0]
+        cluster_batches[0] = {
+            "x_dict": {nt: projected_x_dict[nt] for nt in projected_x_dict},
+            "edge_index_dict": {et: ei for et, ei in edge_index_dict.items()},
+            "target_nodes": local_to_global[target_node_type],
+            "global_target_nodes": local_to_global[target_node_type],
+            "train_nodes": train_nodes,
+            "test_nodes": test_nodes,
+            "targets": target[local_to_global[target_node_type]].long()
+        }
+        return [0], cluster_batches
 
     for cluster in clusters:
-        if args.hetero_training_mode == "full_batch":
-            seed_nodes = set(all_global_nodes)
-        else:
-            seed_nodes = {
-                node_id for node_ids in local_to_global.values() for node_id in node_ids.tolist()
-                if _node_in_cluster(cluster_membership, node_id, cluster, args.clustering_overlap)
-            }
+        seed_nodes = {
+            node_id for node_ids in local_to_global.values() for node_id in node_ids.tolist()
+            if _node_in_cluster(cluster_membership, node_id, cluster, args.clustering_overlap)
+        }
 
         target_seed_nodes = sorted(seed_nodes.intersection(target_global_ids))
         if not target_seed_nodes:
